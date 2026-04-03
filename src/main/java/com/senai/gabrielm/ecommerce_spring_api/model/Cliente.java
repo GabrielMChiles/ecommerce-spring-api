@@ -37,6 +37,14 @@ public class Cliente {
         this.pedidos = pedidos;
     }
 
+    public List<Endereco> getEnderecos() {
+        return enderecos;
+    }
+
+    public List<Pedido> getPedidos() {
+        return pedidos;
+    }
+
     // --- Métodos Utilitários para Endereco ---
 
     public void addEndereco(Endereco endereco) {

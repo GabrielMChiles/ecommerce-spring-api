@@ -61,6 +61,11 @@ public class Pedido {
 
     // Restante dos s/g
 
+
+    public List<ItemPedido> getItens() {
+        return itens;
+    }
+
     public Long getId() {
         return id;
     }
