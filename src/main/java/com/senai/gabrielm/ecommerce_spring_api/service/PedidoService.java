@@ -31,50 +31,50 @@ public class PedidoService {
 
     @Transactional
     public Pedido criarPedido(Pedido pedidoRecebido) {
-        // 1. Validar Cliente
+        // 1. Valida Cliente
         Cliente cliente = clienteRepository.findById(pedidoRecebido.getCliente().getId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Cliente não encontrado."));
 
-        // 2. Monta o Pedido Base
+        // 2. Valida Endereço (O endereço pertence a ESTE cliente?)
+        Long enderecoIdRequisitado = pedidoRecebido.getEndereco().getId();
+        Endereco enderecoReal = cliente.getEnderecos().stream()
+                .filter(end -> end.getId().equals(enderecoIdRequisitado))
+                .findFirst()
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "Endereço de entrega inválido ou não pertence a este cliente."));
+
+        // 3. Montar o Pedido Base
         Pedido novoPedido = new Pedido();
         novoPedido.setCliente(cliente);
+        novoPedido.setEndereco(enderecoReal); // Usa a entidade real e validada
         novoPedido.setData(LocalDateTime.now());
         novoPedido.setStatus(StatusPedido.CRIADO);
 
-        // Atrela o endereço de entrega
-        novoPedido.setEndereco(pedidoRecebido.getEndereco());
-
         BigDecimal totalPedido = BigDecimal.ZERO;
 
-        // 3. Processa Itens e Estoque
+        // 4. Processar Itens e Estoque
         for (ItemPedido itemRecebido : pedidoRecebido.getItens()) {
             Produto produto = produtoRepository.findById(itemRecebido.getProduto().getId())
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Produto não encontrado."));
 
-            // Regra de Negócio: Validar estoque
             if (produto.getEstoque() < itemRecebido.getQuantidade()) {
                 throw new ResponseStatusException(HttpStatus.CONFLICT,
                         "Estoque insuficiente para o produto: " + produto.getNome());
             }
 
-            // Regra de Negócio: Subtrair estoque
             produto.setEstoque(produto.getEstoque() - itemRecebido.getQuantidade());
 
-            // Montar o Item (Não vamos confiar no preço do JSON, pegamos do banco)
             ItemPedido novoItem = new ItemPedido();
             novoItem.setProduto(produto);
             novoItem.setQuantidade(itemRecebido.getQuantidade());
             novoItem.setPrecoUnitario(produto.getPreco());
 
-            // Calcula subtotal do item e soma no total do pedido
             BigDecimal subtotal = novoItem.getPrecoUnitario().multiply(new BigDecimal(novoItem.getQuantidade()));
             totalPedido = totalPedido.add(subtotal);
 
-            // Amarra a relação bidirecional
             novoPedido.addItem(novoItem);
         }
 
-        // Regra de Negócio: Grava o total calculado internamente
         novoPedido.setTotal(totalPedido);
 
         return pedidoRepository.save(novoPedido);
